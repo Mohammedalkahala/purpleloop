@@ -1,0 +1,31 @@
+<!-- PurpleLoop lab rules - detection-as-code copy of /var/ossec/etc/rules/local_rules.xml -->
+
+<group name="sysmon,local_tuning,">
+  <rule id="100100" level="0">
+    <if_sid>92213</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)^C:\\\\Program Files \(x86\)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge\.exe$</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)\\\\AppData\\\\Local\\\\Temp\\\\scoped_dir\d+_\d+\\\\CRX_INSTALL\\\\</field>
+    <description>Tuning: Edge extension install (CRX_INSTALL) in Temp - known benign</description>
+  </rule>
+</group>
+
+<group name="sysmon,persistence,local_detections,">
+
+  <!-- Layer 1 - BEHAVIOR: any Run/RunOnce value written, by any process or method -->
+  <rule id="100200" level="12">
+    <if_sid>61615, 92300, 92304, 92307</if_sid>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)\\+Software\\+Microsoft\\+Windows\\+CurrentVersion\\+Run(Once)?\\+</field>
+    <description>Persistence: Run key value set by $(win.eventdata.image) - $(win.eventdata.targetObject)</description>
+    <mitre><id>T1547.001</id></mitre>
+  </rule>
+
+  <!-- Layer 2 - TOOLING: reg.exe adding a Run key -->
+  <rule id="100201" level="12">
+    <if_sid>61603, 92041</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\+reg\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)reg(\.exe)?\s+add\s+.*\\+CurrentVersion\\+Run</field>
+    <description>Persistence: reg.exe adding Run key - $(win.eventdata.commandLine)</description>
+    <mitre><id>T1547.001</id></mitre>
+  </rule>
+
+</group>

@@ -1,0 +1,30 @@
+# A case = one behavior you test, and the rules that must catch it.
+id: T1547.001-runkey
+title: Registry Run key persistence
+technique: T1547.001
+agent: office01                 # Wazuh agent name of the test machine
+
+test:
+  performed_by: human
+  how: >-
+    Invoke-AtomicTest T1547.001 -TestNumbers 1 (reg.exe), plus the PowerShell variant
+    Set-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Updater
+
+expected_rules: [100200, 100201]
+
+# Optional: narrow the raw events the grader replays a rule against.
+# Default comes from the rule's parents (61615 -> Sysmon event 13, 61603 -> event 1).
+rule_overrides: {}
+#  100200:
+#    candidate_query: 'data.win.system.eventID:13'
+
+# Provenance is required for training exports. Be honest: it decides what you may train on.
+rules_meta:
+  100200:
+    author: "Claude (chat) draft; Mohammed Alkahala tested and tuned"
+    provenance: [claude-assisted, human-validated]
+    license: "Apache-2.0"
+  100201:
+    author: "Claude (chat) draft; Mohammed Alkahala tested and tuned"
+    provenance: [claude-assisted, human-validated]
+    license: "Apache-2.0"

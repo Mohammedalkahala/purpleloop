@@ -1,0 +1,28 @@
+# Copy to config.yaml. Secrets never go here - only the NAME of the env var that holds them.
+indexer:
+  url: https://10.10.30.10:9200          # or https://127.0.0.1:9200 through an SSH tunnel
+  user: purpleloop                        # read-only indexer user (see README)
+  password_env: PURPLELOOP_INDEXER_PASSWORD
+  verify_tls: false                       # lab self-signed certs
+  alerts_index: wazuh-alerts-*
+  archives_index: wazuh-archives-*
+
+rules_file: rules/local_rules.xml
+dataset_file: data/graded.jsonl
+reports_dir: reports
+
+grading:
+  baseline_days: 7            # replay window before the test, for the false-positive estimate
+  min_baseline_hours: 24      # less baseline than this = "low confidence"
+  fp_max_per_day: 5           # more matches/day than this on normal activity = NOISY
+  max_window_events: 5000
+  max_baseline_events: 20000
+
+wazuh:
+  # Optional: real syntax check on the manager during `purpleloop lint`
+  validate_cmd: ""
+  # validate_cmd: "ssh mohammed@10.10.30.10 sudo /var/ossec/bin/wazuh-analysisd -t"
+
+training:
+  # Records whose provenance contains any of these are excluded from `dataset export`.
+  exclude_provenance: [claude]

@@ -1,0 +1,8 @@
+.env
+config.yaml
+data/
+reports/
+train*.jsonl
+__pycache__/
+*.egg-info/
+.venv/
