@@ -72,6 +72,9 @@ def export_training(records: list[dict], exclude_provenance: list[str],
         if r["verdict"] not in ok:
             stats["skipped_verdict"] += 1
             continue
+        if not r.get("rule_xml"):
+            stats["skipped_no_rule_text"] = stats.get("skipped_no_rule_text", 0) + 1
+            continue
         if not prov or "unknown" in prov:
             stats["skipped_unknown_provenance"] += 1
             continue

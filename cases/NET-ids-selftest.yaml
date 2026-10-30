@@ -1,0 +1,18 @@
+# Lane 2 (network): an expected Suricata alert instead of a Wazuh rule.
+id: NET-ids-selftest
+title: Network IDS self-test (id check returned root)
+technique: T1033
+agent: office01                   # the machine the test traffic involves
+
+test:
+  performed_by: human
+  how: >-
+    Kali serves a page containing 'uid=0(root) gid=0(root) groups=0(root)'
+    (python3 -m http.server 8080); office01 fetches it with Invoke-WebRequest.
+
+expected_signals:
+  - id: suricata-id-check-root
+    description: "Suricata: GPL ATTACK_RESPONSE id check returned root"
+    # Wazuh rule 86601 is the generic "Suricata alert" rule, so match the signature text instead.
+    query: 'rule.groups:"suricata" AND data.alert.signature:"GPL ATTACK_RESPONSE id check returned root"'
+    agent: OPNsense.internal      # the sensor's Wazuh agent name (check yours in Wazuh)

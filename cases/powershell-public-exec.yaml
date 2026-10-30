@@ -1,0 +1,10 @@
+id: powershell-public-exec
+title: PowerShell launched from a user-writable folder
+technique: T1059.001
+agent: office01
+test:
+  performed_by: human
+  how: "Caldera Discovery operation; agent in C:\\Users\\Public spawns powershell.exe"
+expected_rules: [100202]
+rules_meta:
+  100202: {author: mohammed, provenance: [human-validated], license: Apache-2.0}

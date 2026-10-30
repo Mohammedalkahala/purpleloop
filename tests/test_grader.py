@@ -191,3 +191,68 @@ def test_dataset_export_respects_provenance(tmp_path):
     assert "reg.exe" in ex[0]["messages"][1]["content"]
     ex_all, _ = dataset.export_training(dataset.load(path), exclude_provenance=[])
     assert len(ex_all) == 2
+
+
+# ---------------- Lane 2: expected signals (e.g. Suricata) ----------------
+
+SIG = {"id": "suricata-2100498", "query": 'data.alert.signature_id:"2100498"', "agent": "OPNsense.internal"}
+NET_CASE = {"id": "NET-ids-selftest", "title": "IDS self-test", "technique": "T1033", "agent": "office01",
+            "expected_rules": [], "expected_signals": [SIG], "test": {"how": "self-hosted page"}}
+
+
+def suri(when, sid="2100498"):
+    return {"timestamp": ts(when), "agent": {"name": "OPNsense.internal"},
+            "rule": {"id": "86601", "description": "Suricata: Alert - test", "groups": ["suricata"]},
+            "data": {"alert": {"signature_id": sid}}}
+
+
+def sensor_up(hours):
+    return [suri(START - timedelta(hours=hours), sid="2033355")]
+
+
+def test_signal_detected_pass():
+    ix = FakeIndexer(alerts=sensor_up(30) + [suri(START + timedelta(minutes=3))])
+    rep = grade_case(ix, RULES, NET_CASE, CFG, START, END)
+    r = by_id(rep)["suricata-2100498"]
+    assert rep["overall"] == "PASS" and r["diagnosis"] == "DETECTED"
+    assert r["baseline"]["confidence"] == "ok" and r["baseline"]["alerts_outside_window"] == 0
+
+
+def test_signal_not_detected():
+    rep = grade_case(FakeIndexer(alerts=sensor_up(30)), RULES, NET_CASE, CFG, START, END)
+    r = by_id(rep)["suricata-2100498"]
+    assert r["verdict"] == "FAIL" and r["diagnosis"] == "NOT_DETECTED"
+
+
+def test_signal_noisy_uses_sensor_coverage():
+    base = sensor_up(48) + [suri(START - timedelta(hours=h)) for h in range(1, 41)]   # ~20/day
+    rep = grade_case(FakeIndexer(alerts=base + [suri(START + timedelta(minutes=3))]), RULES, NET_CASE, CFG, START, END)
+    r = by_id(rep)["suricata-2100498"]
+    assert r["verdict"] == "NOISY" and 15 < r["baseline"]["matches_per_day"] < 25
+
+
+def test_mixed_case_and_export_skips_signals(tmp_path):
+    case = dict(CASE, expected_signals=[SIG])
+    w = START + timedelta(minutes=5, seconds=40)
+    ix = FakeIndexer(alerts=[alert(w, "100200"), alert(w, "100201"), suri(w)] + sensor_up(30),
+                     archives=baseline() + in_window())
+    rep = grade_case(ix, RULES, case, CFG, START, END)
+    assert {r["rule_id"] for r in rep["rules"]} == {"suricata-2100498", "100200", "100201"}
+    path = tmp_path / "g.jsonl"
+    dataset.append_records(path, rep, {k: v.xml for k, v in RULES.items()}, case)
+    ex, stats = dataset.export_training(dataset.load(path), exclude_provenance=[])
+    assert len(ex) == 2 and stats.get("skipped_no_rule_text") == 1
+
+
+def test_short_baseline_single_hit_is_not_noisy():
+    # tonight's real case: 1 earlier alert in 1.2h of sensor data must not become "20/day NOISY"
+    ix = FakeIndexer(alerts=[suri(START - timedelta(hours=1.2)), suri(START + timedelta(minutes=3))])
+    r = by_id(grade_case(ix, RULES, NET_CASE, CFG, START, END))["suricata-2100498"]
+    assert r["verdict"] == "PASS" and r["baseline"]["confidence"] == "low"
+
+
+def test_short_baseline_many_hits_is_noisy():
+    ix = FakeIndexer(alerts=[suri(START - timedelta(minutes=m)) for m in range(10, 70, 6)]
+                     + [suri(START + timedelta(minutes=3))])
+    r = by_id(grade_case(ix, RULES, NET_CASE, CFG, START, END))["suricata-2100498"]
+    assert r["verdict"] == "NOISY"

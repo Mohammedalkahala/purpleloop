@@ -25,9 +25,12 @@ def render(rep: dict) -> str:
         fp = (f"{b.get('matches_per_day', 0)}/day ({b.get('confidence', 'none')} confidence, "
               f"{b.get('covered_hours', 0)}h)") if b else "n/a"
         lines.append(f"| {r['rule_id']} | {ICON.get(r['verdict'], '')} {r['verdict']} | {r['diagnosis']} | "
-                     f"{r['alerts_in_window']} | {r['candidates_in_window']} / {r['replay_matches_in_window']} | {fp} |")
+                     f"{r['alerts_in_window']} | "
+                     + ("sensor alert" if r.get("kind") == "signal"
+                        else f"{r['candidates_in_window']} / {r['replay_matches_in_window']}")
+                     + f" | {fp} |")
     for r in rep["rules"]:
-        lines += ["", f"## Rule {r['rule_id']}: {r.get('description', '')}", "",
+        lines += ["", f"## {'Signal' if r.get('kind') == 'signal' else 'Rule'} {r['rule_id']}: {r.get('description', '')}", "",
                   f"**{r['verdict']}**: {r['reason']}", ""]
         if r.get("sample_alert"):
             lines += [f"- First alert: `{r['first_alert']}`: {r['sample_alert']}"]
@@ -40,7 +43,10 @@ def render(rep: dict) -> str:
                 for v in vals:
                     lines.append(f"  - `{k}` = `{v}`")
         b = r.get("baseline") or {}
-        if b:
+        if b and r.get("kind") == "signal":
+            lines += [f"- Baseline: {b['alerts_outside_window']} matching alerts in the {b['covered_hours']}h "
+                      f"the sensor reported before the test (requested {b['days_requested']}d)"]
+        elif b:
             lines += [f"- Baseline: {b['candidates']} candidate events over {b['covered_hours']}h "
                       f"(requested {b['days_requested']}d); replay matches {b['replay_matches']}; "
                       f"real alerts outside window {b['alerts_outside_window']}"

@@ -84,6 +84,22 @@ rules_meta:
   100200: {author: "...", provenance: [human-validated], license: Apache-2.0}
 ```
 
+### Lane 2: network detections (Suricata)
+Network rules run inside the sensor, so there is nothing to replay. List the alert you expect
+instead; PurpleLoop checks it arrived in Wazuh during the window and how often it fired before:
+```yaml
+id: NET-ids-selftest
+title: Network IDS self-test (id check returned root)
+technique: T1033
+agent: office01
+expected_signals:
+  - id: suricata-id-check-root
+    query: 'rule.groups:"suricata" AND data.alert.signature:"GPL ATTACK_RESPONSE id check returned root"'
+    agent: OPNsense.internal        # the sensor's Wazuh agent
+```
+A case can list both `expected_rules` and `expected_signals` to grade one attack on both lanes.
+Signal results are kept out of the training export (there's no rule text to learn from yet).
+
 ## Honest limits
 - Replay approximates parent rules with a candidate query (Sysmon event ID by default) and only
   understands `pcre2` fields. Alerts are ground truth; replay explains them.
@@ -95,7 +111,8 @@ rules_meta:
 - [x] Method: [docs/WRITING_A_RULE.md](docs/WRITING_A_RULE.md)
 - [ ] Rule-writing agent (local model triage, hosted model drafting, lint + retry)
 - [ ] Discord approve/reject with grader evidence → Git commit → deploy to Wazuh
-- [ ] Lane 2: Suricata rules graded the same way
+- [x] Lane 2: Suricata alerts graded as expected signals (v0.2.0)
+- [ ] Lane 2: grade your own Suricata rules (rule text into the dataset)
 - [ ] Fine-tune a small open model on lab-verified rules; benchmark it with the grader
 
 License: Apache-2.0

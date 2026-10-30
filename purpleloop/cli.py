@@ -55,9 +55,15 @@ def resolve(cfg: dict, rel: str) -> Path:
 
 def load_case(path: str) -> dict:
     case = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-    for key in ("id", "title", "technique", "agent", "expected_rules"):
+    for key in ("id", "title", "technique", "agent"):
         if key not in case:
             raise SystemExit(f"case {path} is missing '{key}'")
+    if not case.get("expected_rules") and not case.get("expected_signals"):
+        raise SystemExit(f"case {path} needs expected_rules (Wazuh) and/or expected_signals (e.g. Suricata)")
+    for s in case.get("expected_signals") or []:
+        if "id" not in s or "query" not in s:
+            raise SystemExit(f"case {path}: every expected_signal needs 'id' and 'query'")
+    case.setdefault("expected_rules", [])
     # YAML reads 100200 as an int; normalize every rule-keyed map to string ids.
     case["expected_rules"] = [str(r) for r in case["expected_rules"]]
     for k in ("rules_meta", "rule_overrides"):

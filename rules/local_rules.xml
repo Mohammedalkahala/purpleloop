@@ -29,3 +29,23 @@
   </rule>
 
 </group>
+
+<group name="sysmon,windows,execution,">
+  <rule id="100202" level="12">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\+powershell\.exe$</field>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)\\+users\\+public\\+</field>
+    <description>PowerShell launched from a user-writable folder by $(win.eventdata.parentImage)</description>
+    <mitre><id>T1059.001</id></mitre>
+  </rule>
+</group>
+
+
+<group name="sysmon,windows,local_tuning,">
+  <rule id="100203" level="0">
+    <if_sid>92154</if_sid>
+    <field name="win.eventdata.signature" type="pcre2">(?i)^Microsoft Windows$</field>
+    <field name="win.eventdata.signatureStatus" type="pcre2">(?i)^Valid$</field>
+    <description>Tuning: benign Microsoft-signed process loading taskschd.dll</description>
+  </rule>
+</group>

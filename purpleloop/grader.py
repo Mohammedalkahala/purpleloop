@@ -10,6 +10,10 @@ You run the test (e.g. an Atomic Red Team test) yourself. Then the grader answer
   * NO_TELEMETRY  - no candidate events at all: the test didn't produce what we expected,
                     logging is off, or the agent isn't shipping that channel
 
+Lane 2 (network) cases list expected_signals instead: a query for the sensor's alert
+(e.g. a Suricata signature ID). Those are DETECTED or NOT_DETECTED; noise is the same
+alert's rate before the test.
+
 ...and how noisy it would be: replaying the rule over normal activity before the test.
 """
 
@@ -20,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 
 from .rules import Rule, get_path, lint, replay_match
 
-VERSION = "0.1.0"
+VERSION = "0.2.1"
 
 
 @dataclass
@@ -38,6 +42,7 @@ class Baseline:
 @dataclass
 class RuleResult:
     rule_id: str
+    kind: str = "rule"            # rule (Wazuh, replayable) | signal (sensor alert, e.g. Suricata)
     description: str = ""
     level: int = -1
     mitre: list[str] = field(default_factory=list)
@@ -54,6 +59,18 @@ class RuleResult:
     reason: str = ""
     sample_values: dict[str, list[str]] = field(default_factory=dict)
     baseline: Baseline | None = None
+
+
+def _is_noisy(b: Baseline, fp_max: float) -> bool:
+    """Only call something NOISY on real evidence.
+
+    A rate projected from a short baseline (1 alert in 1h -> "24/day") is a guess, so with
+    less than min_baseline_hours we require more than fp_max actual hits, not a projection.
+    """
+    hits = max(b.replay_matches, b.alerts_outside_window)
+    if b.confidence == "ok":
+        return b.matches_per_day > fp_max
+    return hits > fp_max
 
 
 def _q(v: str) -> str:
@@ -163,7 +180,7 @@ def grade_rule(ix, rule: Rule, case: dict, cfg: dict, start: datetime, end: date
             "MISMATCH": "events arrived but the rule's conditions don't match them - compare with sample values",
             "MISS_UNREPLAYABLE": "no alert; rule uses non-pcre2 fields so replay can't explain why",
         }[res.diagnosis]
-    elif b.matches_per_day > fp_max:
+    elif _is_noisy(b, fp_max):
         res.verdict = "NOISY"
         res.reason = f"~{b.matches_per_day}/day on normal activity (limit {fp_max:g})"
     else:
@@ -174,10 +191,66 @@ def grade_rule(ix, rule: Rule, case: dict, cfg: dict, start: datetime, end: date
     return res
 
 
+def grade_signal(ix, sig: dict, cfg: dict, start: datetime, end: datetime) -> RuleResult:
+    """Lane 2: an expected alert identified by a query, e.g. a Suricata signature ID.
+
+    Network rules run inside the sensor, not in Wazuh's rule engine, so there is nothing to
+    replay locally: alerts are the only evidence. Noise is the same query's alert rate before
+    the test, over the hours the sensor has actually been reporting.
+    """
+    g = cfg.get("grading", {})
+    alerts_idx = cfg["indexer"].get("alerts_index", "wazuh-alerts-*")
+    sensor = sig.get("agent")
+    q = f"({sig['query']})" + (f" AND agent.name:{_q(sensor)}" if sensor else "")
+    res = RuleResult(rule_id=str(sig["id"]), kind="signal", description=sig.get("description", sig["query"]),
+                     candidate_query=q)
+
+    hits = ix.search(alerts_idx, q, start, end, limit=50, source=["timestamp", "rule.description"])
+    res.alerts_in_window = len(hits)
+    if hits:
+        res.first_alert = hits[0].get("timestamp", "")
+        res.sample_alert = str(get_path(hits[0], "rule.description") or "")[:300]
+    res.diagnosis = "DETECTED" if hits else "NOT_DETECTED"
+
+    days = int(g.get("baseline_days", 7))
+    b = Baseline(days_requested=days)
+    b_start = start - timedelta(days=days)
+    # Coverage = how long the sensor has been reporting (first alert from it in the period).
+    cover_q = f"agent.name:{_q(sensor)}" if sensor else q
+    first = ix.search(alerts_idx, cover_q, b_start, start, limit=1, source=["timestamp"])
+    if first:
+        try:
+            ts = datetime.fromisoformat(first[0]["timestamp"].replace("Z", "+00:00"))
+            ts = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+            b.covered_hours = round(max((start - ts).total_seconds(), 0) / 3600, 1)
+        except (KeyError, ValueError):
+            pass
+    b.alerts_outside_window = ix.count(alerts_idx, q, b_start, start)
+    b.matches_per_day = round(b.alerts_outside_window / max(b.covered_hours / 24, 1 / 24), 2)
+    min_hours = float(g.get("min_baseline_hours", 24))
+    b.confidence = "none" if b.covered_hours == 0 else ("low" if b.covered_hours < min_hours else "ok")
+    res.baseline = b
+
+    fp_max = float(sig.get("fp_max_per_day", g.get("fp_max_per_day", 5)))
+    if not hits:
+        res.verdict, res.reason = "FAIL", ("no matching alert in the window - check the sensor saw the "
+                                           "traffic (interface), the rule is enabled, and rules were applied")
+    elif _is_noisy(b, fp_max):
+        res.verdict, res.reason = "NOISY", f"~{b.matches_per_day}/day before the test (limit {fp_max:g})"
+    else:
+        res.verdict = "PASS"
+        res.reason = "alerted on the test" + ("" if b.confidence == "ok" else
+                                              f"; noise unknown yet: {b.alerts_outside_window} earlier alert(s) "
+                                              f"in {b.covered_hours}h - regrade after a day of normal traffic")
+    return res
+
+
 def grade_case(ix, rules: dict[str, Rule], case: dict, cfg: dict,
                start: datetime, end: datetime) -> dict:
     results: list[RuleResult] = []
-    for rid in [str(r) for r in case["expected_rules"]]:
+    for sig in case.get("expected_signals") or []:
+        results.append(grade_signal(ix, sig, cfg, start, end))
+    for rid in [str(r) for r in case.get("expected_rules") or []]:
         if rid not in rules:
             results.append(RuleResult(rule_id=rid, verdict="FAIL", diagnosis="NOT_FOUND",
                                       reason=f"rule {rid} not in rules file"))
