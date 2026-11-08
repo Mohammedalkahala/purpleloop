@@ -55,6 +55,7 @@
   <!-- CVE-2024-6387 (regreSSHion). Building block: one sshd pre-auth timeout.
        srcip comes from the local decoder sshd-preauth-timeout (OpenSSH 10.x wording). -->
   <rule id="100500" level="3">
+    <decoded_as>sshd</decoded_as>
     <program_name>^sshd</program_name>
     <match>Timeout before authentication</match>
     <description>sshd: client $(srcip) timed out before authentication</description>
