@@ -49,3 +49,25 @@
     <description>Tuning: benign Microsoft-signed process loading taskschd.dll</description>
   </rule>
 </group>
+
+<!-- CVE-2024-6387: added 20261108-133427 by finalize.sh -->
+<group name="purpleloop,cve,">
+  <!-- CVE-2024-6387 (regreSSHion). Building block: one sshd pre-auth timeout.
+       srcip comes from the local decoder sshd-preauth-timeout (OpenSSH 10.x wording). -->
+  <rule id="100500" level="3">
+    <program_name>^sshd</program_name>
+    <match>Timeout before authentication</match>
+    <description>sshd: client $(srcip) timed out before authentication</description>
+    <mitre><id>T1190</id></mitre>
+    <group>sshd,cve_2024_6387,</group>
+  </rule>
+
+  <!-- Detection: a burst of pre-auth timeouts from ONE source, the footprint of the regreSSHion race. -->
+  <rule id="100501" level="12" frequency="10" timeframe="120">
+    <if_matched_sid>100500</if_matched_sid>
+    <same_srcip />
+    <description>sshd: 10+ pre-auth timeouts from $(srcip) in 120s - possible CVE-2024-6387 (regreSSHion) exploitation attempt</description>
+    <mitre><id>T1190</id></mitre>
+    <group>sshd,cve_2024_6387,attack,</group>
+  </rule>
+</group>

@@ -6,3 +6,6 @@ train*.jsonl
 __pycache__/
 *.egg-info/
 .venv/
+drafts/
+rules/backup/
+*.pre-revert
