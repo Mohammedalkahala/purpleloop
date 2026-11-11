@@ -72,3 +72,27 @@
     <group>sshd,cve_2024_6387,attack,</group>
   </rule>
 </group>
+
+<!-- ops01 lab-ops agent: watch the watcher (added 2026-11-11) -->
+<group name="claude_agent,">
+  <rule id="100060" level="3">
+    <program_name>^claude-agent$</program_name>
+    <description>ops01 AI agent action</description>
+  </rule>
+  <rule id="100061" level="10">
+    <if_sid>100060</if_sid>
+    <match>verdict=BLOCKED</match>
+    <description>ops01 AI agent: guard BLOCKED an action</description>
+    <mitre><id>T1562</id></mitre>
+  </rule>
+  <rule id="100062" level="8">
+    <program_name>^fw-apply$</program_name>
+    <match>APPLIED</match>
+    <description>ops01 AI agent changed the OPNsense firewall</description>
+  </rule>
+  <rule id="100063" level="10">
+    <program_name>^fw-apply$</program_name>
+    <match>REFUSED</match>
+    <description>ops01 AI agent: fw-apply REFUSED a firewall plan</description>
+  </rule>
+</group>
