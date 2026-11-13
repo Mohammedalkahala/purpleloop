@@ -1,0 +1,13 @@
+<!-- On the Wazuh manager: /var/ossec/etc/shared/sysmon/agent.conf  (group "sysmon")
+     Ships Sysmon + PowerShell script-block (4104) events from lab Windows endpoints only. -->
+<agent_config os="Windows">
+  <localfile>
+    <location>Microsoft-Windows-Sysmon/Operational</location>
+    <log_format>eventchannel</log_format>
+  </localfile>
+  <localfile>
+    <location>Microsoft-Windows-PowerShell/Operational</location>
+    <log_format>eventchannel</log_format>
+    <query>Event/System[EventID=4104]</query>
+  </localfile>
+</agent_config>

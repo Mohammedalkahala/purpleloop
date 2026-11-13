@@ -1,0 +1,29 @@
+title: Script Host Runs Single-Digit-Named VBScript From Temp or ScreenConnect Folder
+id: 9a3d7e51-2c84-4b0f-8e6a-71f5c2d9b3e4
+status: experimental
+description: Detects wscript/cscript running a VBScript named with a single digit (1.vbs, 2.vbs ...) from a Temp or ScreenConnect folder, the staging pattern in the Huntress rogue-ScreenConnect chain.
+references:
+  - https://www.huntress.com/blog/rogue-screenconnect-installations
+author: Mohammed Alkahala (PurpleLoop)
+date: 2026-11-13
+tags:
+  - attack.execution
+  - attack.t1059.005
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_img:
+    Image|endswith:
+      - '\wscript.exe'
+      - '\cscript.exe'
+  selection_path:
+    CommandLine|contains:
+      - '\Temp\'
+      - '\ScreenConnect\'
+  selection_name:
+    CommandLine|re: '(?i)[\\/][0-9]\.vbs'
+  condition: all of selection_*
+falsepositives:
+  - Rare; some legacy login scripts use short names
+level: medium

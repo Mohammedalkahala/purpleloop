@@ -1,0 +1,30 @@
+title: ScreenConnect Client Spawns Windows Script Host
+id: 4f6b0c2e-6a51-4c3e-9b1e-2d7a8f0c5a10
+status: experimental
+description: Detects the ConnectWise ScreenConnect client starting wscript.exe or cscript.exe, the core behaviour Huntress observed in rogue ScreenConnect installs that run a staged VBScript chain.
+references:
+  - https://www.huntress.com/blog/rogue-screenconnect-installations
+author: Mohammed Alkahala (PurpleLoop)
+date: 2026-11-13
+tags:
+  - attack.command-and-control
+  - attack.t1219
+  - attack.execution
+  - attack.t1059.005
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_parent:
+    ParentImage|endswith:
+      - '\ScreenConnect.WindowsClient.exe'
+      - '\ScreenConnect.ClientService.exe'
+      - '\ScreenConnect.Client.exe'
+  selection_child:
+    Image|endswith:
+      - '\wscript.exe'
+      - '\cscript.exe'
+  condition: selection_parent and selection_child
+falsepositives:
+  - Technicians deliberately running VBScript through ScreenConnect's command toolbox (baseline per environment)
+level: high

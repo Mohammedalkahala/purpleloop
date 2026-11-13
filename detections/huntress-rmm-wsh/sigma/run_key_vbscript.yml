@@ -1,0 +1,22 @@
+title: Run Key Value Launches a VBScript
+id: c2e8b4a7-5d19-4f63-a0b2-8e4f6d1c7a95
+status: experimental
+description: Detects a Run key value whose data launches a .vbs file, as with the WindowsServiceHost.vbs persistence in the Huntress rogue-ScreenConnect chain.
+references:
+  - https://www.huntress.com/blog/rogue-screenconnect-installations
+author: Mohammed Alkahala (PurpleLoop)
+date: 2026-11-13
+tags:
+  - attack.persistence
+  - attack.t1547.001
+logsource:
+  category: registry_set
+  product: windows
+detection:
+  selection:
+    TargetObject|contains: '\CurrentVersion\Run\'
+    Details|contains: '.vbs'
+  condition: selection
+falsepositives:
+  - Legacy software that starts helper VBScripts at logon
+level: high
