@@ -8,7 +8,7 @@
 | **Telemetry** | Sysmon Event 1 (process creation) and Event 13 (registry value set), via the Wazuh agent (group `sysmon`) |
 | **Test target** | office02 (VM 201), restored to the `baseline` snapshot after each test |
 | **Provenance** | Rules and simulation drafted with AI, reviewed by a human; validation status is in the grade table below |
-| **Status** | ⏳ draft, not yet graded |
+| **Status** | ✅ core chain PASS (2026-11-13, run 4); robustness and low-telemetry tests pending |
 
 ## Rules
 
@@ -35,7 +35,46 @@ It reproduces the **telemetry**, not the malware:
 
 | Date | Target | Expected | Result | Grade |
 |---|---|---|---|---|
-| (pending) | office02 | 100510 ×4, 100511, 100512 ×4, 100513, 100514 | | |
+| 2026-11-13 run 1 | office02 | 4 alerts from 100510/100511, 100513 ×1, 100514 ×1 | 4 wscript alerts ✅; 100513 and 100514 claimed by built-in 92029 / 92301 | FAIL → fixed (parents 61603+92029, 61615+92301) |
+| 2026-11-13 run 2–3 | office02 | same | wscript alerts ✅; 100513/100514 still silent: regexes assumed single backslashes, Wazuh stores `\\` and `\"` | FAIL → fixed (`\\+` patterns) |
+| 2026-11-13 run 4 | office02 | 4 wscript alerts (100510 ×3 + 100511 ×1), 100513 ×1, 100514 ×1 | exactly as expected | **PASS** |
+
+**Note on 100512:** in the full chain the 4 wscript events go to 100510 (ScreenConnect parent). 100512 is the backstop that fires when the parent link is broken (e.g. `cmd /c wscript`), so it is expected to stay silent in this run.
+
+**Lesson learned:** Wazuh stores Windows eventchannel paths with doubled backslashes and escaped quotes, so patterns use `\\+` and avoid quote anchors.
+
+**Note on built-in overlap:** Wazuh's 92029 and 92301 match the PowerShell and Run-key events first, so 100513/100514 hang off those rules as well as the Sysmon base rules.
+
+## Beyond the original post
+
+### 1. Robustness: how easy is the obvious rule to dodge? (`sim/variants.ps1`)
+Each variant is harmless and tags its command line with `PLSIM-Vn`. The "expected" column is a prediction; the "result" column is filled in from the run.
+
+| Variant | Change an attacker could make | Expected to fire | Result |
+|---|---|---|---|
+| V1 | `cscript` instead of `wscript` | 100510 | |
+| V2 | script renamed `update.vbs` | 100510 (100512 misses: not a numbered name) | |
+| V3 | JScript `payload.js` | 100510 | |
+| V4 | `cmd /c wscript ...` breaks the parent link | 100510 misses → **100516** (hardened) + 100512 backstop | |
+| V5 | `ScreenConnect.ClientService.exe` as parent | 100510 | |
+| V6 | `mshta vbscript:...` | 100510 misses → **100515** (hardened) | |
+| V7 | PowerShell straight from ScreenConnect | nothing: indistinguishable from normal technician use (documented gap) | |
+
+Hardened rules: `wazuh/huntress-rmm-wsh_hardened_rules.xml` (100515, 100516).
+
+### 2. Low telemetry: no Sysmon, no EDR (`sim/lowtel-setup.ps1`)
+What a small business can still see using only free, built-in Windows logging: Security **4688** with command lines, and PowerShell script-block logging **4104**.
+Rules: `wazuh/huntress-rmm-wsh_lowtel_rules.xml` (100517 = 4688 version of 100510; 100518 = 4104 version of the Run-key persistence). Their parent rule IDs must be confirmed on the manager before deploying.
+
+| Stage of the chain | With Sysmon | Built-in logging only |
+|---|---|---|
+| ScreenConnect → wscript | 100510 / 100511 | 100517 (4688) |
+| wscript → PowerShell runner.ps1 | 100513 | built-in 92029-style rules on 4104 |
+| Run key → .vbs | 100514 | 100518 (4104) |
+
+### 3. Giving back
+- **Atomic Red Team:** `atomic/T1059.005-rmm-script-host-chain.yaml`, a proposed test for Red Canary's Atomic Red Team.
+- **SigmaHQ:** the three Sigma rules in `sigma/`, crediting the Huntress post.
 
 ## False positives and tuning
 - **100510:** technicians who really do run VBScript through ScreenConnect's command toolbox. Baseline it per environment, and add an exception per technician script path if needed.

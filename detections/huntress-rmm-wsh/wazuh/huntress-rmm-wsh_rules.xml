@@ -25,25 +25,25 @@
   <rule id="100512" level="10">
     <if_group>sysmon_event1</if_group>
     <field name="win.eventdata.image" type="pcre2">(?i)[\\/](wscript|cscript)\.exe$</field>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)(\\temp\\|screenconnect).*[\\/]+\d\.vbs</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(\\+temp\\+|screenconnect).*[\\/]+\d\.vbs</field>
     <description>Script host ran a numbered VBScript from a temp/ScreenConnect folder: $(win.eventdata.commandLine)</description>
     <mitre><id>T1059.005</id></mitre>
   </rule>
 
   <!-- R4: script host starts PowerShell on a .ps1 in Temp (4.vbs -> runner.ps1). -->
   <rule id="100513" level="10">
-    <if_group>sysmon_event1</if_group>
+    <if_sid>61603, 92029</if_sid>
     <field name="win.eventdata.parentImage" type="pcre2">(?i)[\\/](wscript|cscript)\.exe$</field>
     <field name="win.eventdata.image" type="pcre2">(?i)[\\/](powershell|pwsh)\.exe$</field>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)-file\s+"?[^"]*\\temp\\[^"]*\.ps1</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)-file\b.*\\+temp\\+.*\.ps1</field>
     <description>Script host launched PowerShell on a script in Temp: $(win.eventdata.commandLine)</description>
     <mitre><id>T1059.005</id><id>T1059.001</id></mitre>
   </rule>
 
   <!-- R5: a Run key value that launches a VBScript (WindowsServiceHost.vbs persistence). -->
   <rule id="100514" level="12">
-    <if_group>sysmon_event_13</if_group>
-    <field name="win.eventdata.targetObject" type="pcre2">(?i)\\currentversion\\run\\</field>
+    <if_sid>61615, 92301</if_sid>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)\\+currentversion\\+run\\+</field>
     <field name="win.eventdata.details" type="pcre2">(?i)\.vbs</field>
     <description>Run key set to launch a VBScript: $(win.eventdata.targetObject) = $(win.eventdata.details)</description>
     <mitre><id>T1547.001</id></mitre>
