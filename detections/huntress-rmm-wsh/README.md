@@ -8,7 +8,7 @@
 | **Telemetry** | Sysmon Event 1 (process creation) and Event 13 (registry value set), via the Wazuh agent (group `sysmon`) |
 | **Test target** | office02 (VM 201), restored to the `baseline` snapshot after each test |
 | **Provenance** | Rules and simulation drafted with AI, reviewed by a human; validation status is in the grade table below |
-| **Status** | ✅ core chain PASS (2026-11-13, run 4); robustness and low-telemetry tests pending |
+| **Status** | ✅ core chain PASS (run 4) · ✅ robustness: 7/7 variants handled after hardening (V7 = documented gap) · ✅ low-telemetry: PASS without Sysmon (100517, 100518) |
 
 ## Rules
 
@@ -52,25 +52,29 @@ Each variant is harmless and tags its command line with `PLSIM-Vn`. The "expecte
 
 | Variant | Change an attacker could make | Expected to fire | Result |
 |---|---|---|---|
-| V1 | `cscript` instead of `wscript` | 100510 | |
-| V2 | script renamed `update.vbs` | 100510 (100512 misses: not a numbered name) | |
-| V3 | JScript `payload.js` | 100510 | |
-| V4 | `cmd /c wscript ...` breaks the parent link | 100510 misses → **100516** (hardened) + 100512 backstop | |
-| V5 | `ScreenConnect.ClientService.exe` as parent | 100510 | |
-| V6 | `mshta vbscript:...` | 100510 misses → **100515** (hardened) | |
-| V7 | PowerShell straight from ScreenConnect | nothing: indistinguishable from normal technician use (documented gap) | |
+| V1 | `cscript` instead of `wscript` | 100510 | ✅ 100510 |
+| V2 | script renamed `update.vbs` | 100510 (100512 misses: not a numbered name) | ✅ 100510 |
+| V3 | JScript `payload.js` | 100510 | ✅ caught as 100511 (3rd ScreenConnect→script host in 2 min, across variants) |
+| V4 | `cmd /c wscript ...` breaks the parent link | 100510 misses → **100516** (hardened) + 100512 backstop | ⚠️ 100510 missed as predicted; first run caught only by the 100512 backstop (L10) + built-in 92052 (L4). ✅ After hardening: **100516** + 100512 |
+| V5 | `ScreenConnect.ClientService.exe` as parent | 100510 | ✅ 100510 |
+| V6 | `mshta vbscript:...` | 100510 misses → **100515** (hardened) | ⚠️ mshta launched from ScreenConnect and none of 100510–100514 fired (the inline payload itself failed on a test-harness quoting bug; Defender logged nothing). ✅ After hardening: **100515** |
+| V7 | PowerShell straight from ScreenConnect | nothing: indistinguishable from normal technician use (documented gap) | ✅ gap confirmed: only built-in 91816 (L4) |
 
 Hardened rules: `wazuh/huntress-rmm-wsh_hardened_rules.xml` (100515, 100516).
+
+**Emulation side effects (not real-world signals):** because the fake client is a renamed powershell.exe copied to disk, built-in rules 92151 ("binary loaded PowerShell automation library", L12), 92213 ("executable dropped in folder commonly used by malware", L15) and 92203 fire on every run. A genuine ScreenConnect client would not trigger these; do not count them as detection coverage.
 
 ### 2. Low telemetry: no Sysmon, no EDR (`sim/lowtel-setup.ps1`)
 What a small business can still see using only free, built-in Windows logging: Security **4688** with command lines, and PowerShell script-block logging **4104**.
 Rules: `wazuh/huntress-rmm-wsh_lowtel_rules.xml` (100517 = 4688 version of 100510; 100518 = 4104 version of the Run-key persistence). Their parent rule IDs must be confirmed on the manager before deploying.
 
-| Stage of the chain | With Sysmon | Built-in logging only |
+| Stage of the chain | With Sysmon | Built-in logging only (result 2026-11-13) |
 |---|---|---|
-| ScreenConnect → wscript | 100510 / 100511 | 100517 (4688) |
-| wscript → PowerShell runner.ps1 | 100513 | built-in 92029-style rules on 4104 |
-| Run key → .vbs | 100514 | 100518 (4104) |
+| ScreenConnect → wscript ×4 | 100510 ×3 + 100511 | ✅ **100517 ×4** (Security 4688) |
+| wscript → PowerShell runner.ps1 | 100513 | ✅ visible in the 4104 script block (no dedicated rule yet) |
+| Run key → .vbs | 100514 | ✅ **100518** (4104), one second *before* Sysmon's registry event, because the script block is logged before it runs |
+
+**Takeaway:** an organisation with no Sysmon and no EDR can still catch this chain with two free Windows settings (process-creation auditing with command lines, and PowerShell script-block logging) plus these two rules.
 
 ### 3. Giving back
 - **Atomic Red Team:** `atomic/T1059.005-rmm-script-host-chain.yaml`, a proposed test for Red Canary's Atomic Red Team.

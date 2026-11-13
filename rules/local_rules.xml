@@ -151,3 +151,49 @@
   </rule>
 
 </group>
+<!-- Detection #2, hardened rules: close the gaps the robustness test (sim/variants.ps1) is expected to find.
+     Parents may need extra if_sid entries if built-in rules claim the events first (as with 100513/100514). -->
+<group name="windows,sysmon,purpleloop,huntress_rmm_wsh,">
+
+  <!-- V6: ScreenConnect starts a proxy-execution LOLBin directly. -->
+  <rule id="100515" level="12">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)screenconnect\.(windowsclient|clientservice|client)\.exe$</field>
+    <field name="win.eventdata.image" type="pcre2">(?i)[\\/](mshta|rundll32|regsvr32)\.exe$</field>
+    <description>ScreenConnect client spawned $(win.eventdata.image): proxy execution via RMM</description>
+    <mitre><id>T1219</id><id>T1218</id></mitre>
+  </rule>
+
+  <!-- V4: ScreenConnect starts a shell whose command line launches a script host or script file (breaks the direct parent link). -->
+  <rule id="100516" level="12">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)screenconnect\.(windowsclient|clientservice|client)\.exe$</field>
+    <field name="win.eventdata.image" type="pcre2">(?i)[\\/](cmd|powershell|pwsh)\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(wscript|cscript|mshta)(\.exe)?\b|\.(vbs|vbe|js|jse|wsf|hta)\b</field>
+    <description>ScreenConnect client started a shell that launches a script: $(win.eventdata.commandLine)</description>
+    <mitre><id>T1219</id><id>T1059.005</id></mitre>
+  </rule>
+
+</group>
+<!-- Detection #2, low-telemetry versions (no Sysmon): Security 4688 and PowerShell 4104.
+     PARENTS ARE NOT CONFIRMED YET: find the built-in 4688 and 4104 rule IDs on the manager and run logtest before deploying. -->
+<group name="windows,purpleloop,huntress_rmm_wsh,lowtel,">
+
+  <!-- 4688 version of 100510: ScreenConnect -> script host -->
+  <rule id="100517" level="12">
+    <if_sid>67027</if_sid>  <!-- CONFIRM: built-in "A process was created" (4688) -->
+    <field name="win.eventdata.parentProcessName" type="pcre2">(?i)screenconnect\.(windowsclient|clientservice|client)\.exe$</field>
+    <field name="win.eventdata.newProcessName" type="pcre2">(?i)[\\/](wscript|cscript|mshta)\.exe$</field>
+    <description>[no Sysmon] ScreenConnect client spawned $(win.eventdata.newProcessName) (Security 4688)</description>
+    <mitre><id>T1219</id><id>T1059.005</id></mitre>
+  </rule>
+
+  <!-- 4104 version of 100514: a PowerShell script block that writes a Run key pointing at a VBScript -->
+  <rule id="100518" level="12">
+    <if_sid>91802, 91816</if_sid>  <!-- CONFIRM: built-in PowerShell 4104 script-block rule -->
+    <field name="win.eventdata.scriptBlockText" type="pcre2">(?is)currentversion\\+run.*\.vbs</field>
+    <description>[no Sysmon] PowerShell set a Run key to launch a VBScript (4104)</description>
+    <mitre><id>T1547.001</id><id>T1059.001</id></mitre>
+  </rule>
+
+</group>
