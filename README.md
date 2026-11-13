@@ -54,7 +54,7 @@ curl -sk -u admin:"$ADMIN" -X PUT https://localhost:9200/_plugins/_security/api/
   "cluster_permissions": ["cluster_composite_ops_ro", "cluster:monitor/main"],
   "index_permissions": [{"index_patterns": ["wazuh-alerts-*","wazuh-archives-*"], "allowed_actions": ["read"]}]}'
 curl -sk -u admin:"$ADMIN" -X PUT https://localhost:9200/_plugins/_security/api/internalusers/purpleloop \
-  -H 'Content-Type: application/json' -d '{"password": "A-Strong-Passw0rd.", "backend_roles": []}'
+  -H 'Content-Type: application/json' -d '{"password": "<choose-a-strong-password>", "backend_roles": []}'
 curl -sk -u admin:"$ADMIN" -X PUT https://localhost:9200/_plugins/_security/api/rolesmapping/purpleloop_read \
   -H 'Content-Type: application/json' -d '{"users": ["purpleloop"]}'
 ```
