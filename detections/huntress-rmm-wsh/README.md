@@ -78,7 +78,7 @@ Rules: `wazuh/huntress-rmm-wsh_lowtel_rules.xml` (100517 = 4688 version of 10051
 
 ### 3. Giving back
 - **Atomic Red Team:** `atomic/T1059.005-rmm-script-host-chain.yaml`, a proposed test for Red Canary's Atomic Red Team.
-- **SigmaHQ:** the three Sigma rules in `sigma/`, crediting the Huntress post.
+- **SigmaHQ:** two of the rules submitted upstream in [SigmaHQ/sigma#6615](https://github.com/SigmaHQ/sigma/pull/6615).
 
 ## False positives and tuning
 - **100510:** technicians who really do run VBScript through ScreenConnect's command toolbox. Baseline it per environment, and add an exception per technician script path if needed.
